@@ -6,7 +6,7 @@
 # ---------------------------------------------------------------
 #  TOKEN AKUN DISCORD ANDA
 # ---------------------------------------------------------------
-TOKEN = "token discord"
+TOKEN = "TOKEN DISCORD"
 
 
 # ================================================================
@@ -20,9 +20,9 @@ TOKEN = "token discord"
 #  Cara ambil CHANNEL ID:
 #    1. Klik kanan nama CHANNEL di dalam server → "Copy Channel ID"
 # ================================================================
-TARGET_SERVER_NAME  = "opsional"              # Nama server tujuan (bebas isi, hanya untuk info)
-TARGET_SERVER_ID    =                      # ← Server ID server tujuan  (klik kanan nama SERVER)
-TARGET_CHANNEL_ID   =    # ← Channel ID di server tujuan (klik kanan nama CHANNEL)
+TARGET_SERVER_NAME  = ""              # Nama server tujuan (bebas isi, hanya untuk info)
+TARGET_SERVER_ID    =  0                    # ← Server ID server tujuan  (klik kanan nama SERVER)
+TARGET_CHANNEL_ID   = 0# ← Channel ID di server tujuan (klik kanan nama CHANNEL)
 
 
 # ================================================================
@@ -32,9 +32,9 @@ TARGET_CHANNEL_ID   =    # ← Channel ID di server tujuan (klik kanan nama CHAN
 #
 #  Cara ambil SERVER ID & CHANNEL ID: sama seperti cara di atas
 # ================================================================
-CONTROL_SERVER_NAME = "opsional"         # Nama server kontrol (bebas isi, hanya untuk info)
-CONTROL_SERVER_ID   =                      # ← Server ID server Anda  (klik kanan nama SERVER)
-CONTROL_CHANNEL_ID  =    # ← Channel ID di server Anda (klik kanan nama CHANNEL)
+CONTROL_SERVER_NAME = ""         # Nama server kontrol (bebas isi, hanya untuk info)
+CONTROL_SERVER_ID   = 0                     # ← Server ID server Anda  (klik kanan nama SERVER)
+CONTROL_CHANNEL_ID  =  0  # ← Channel ID di server Anda (klik kanan nama CHANNEL)
 
 
 # ================================================================

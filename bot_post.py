@@ -3,6 +3,7 @@ from discord.ext import commands
 import asyncio
 import random
 import sys
+import time
 
 # Import semua pengaturan dari config.py
 from config import (
@@ -24,6 +25,10 @@ auto_enabled    = True
 cd_min          = CD_MIN
 cd_max          = CD_MAX
 
+# Waktu kapan post berikutnya akan dikirim (unix timestamp)
+# 0 = belum diset, akan diset saat loop pertama jalan
+next_post_time  = 0
+
 # ================================================================
 #  INISIALISASI BOT
 # ================================================================
@@ -33,7 +38,7 @@ bot = commands.Bot(command_prefix="!", self_bot=True)
 #  LOOP AUTO POST
 # ================================================================
 async def auto_post_loop():
-    global auto_enabled
+    global auto_enabled, next_post_time
     await bot.wait_until_ready()
 
     # Ambil channel tujuan post
@@ -50,24 +55,30 @@ async def auto_post_loop():
     print(f"   Server Tujuan  : {channel.guild.name}  (Server ID : {channel.guild.id})")
     print(f"   Channel Tujuan : #{channel.name}  (Channel ID: {channel.id})")
 
+    # Set waktu post pertama
+    delay = random.randint(cd_min, cd_max)
+    next_post_time = time.time() + delay
+    print(f"⏳ Kirim pertama dalam {delay} detik ({delay//60} menit {delay%60} detik)...")
 
+    # Loop cek setiap 1 detik — responsif terhadap perubahan CD & toggle
     while not bot.is_closed():
-        if not auto_enabled:
-            await asyncio.sleep(5)
-            continue
-
-        delay = random.randint(cd_min, cd_max)
-        print(f"⏳ Kirim berikutnya dalam {delay} detik ({delay//60} menit {delay%60} detik)...")
-        await asyncio.sleep(delay)
+        await asyncio.sleep(1)
 
         if not auto_enabled:
             continue
 
-        try:
-            await channel.send(current_message)
-            print(f"✅ Pesan terkirim ke #{channel.name}: {current_message[:60]}")
-        except Exception as e:
-            print(f"❌ Gagal kirim pesan: {e}")
+        now = time.time()
+        if now >= next_post_time:
+            try:
+                await channel.send(current_message)
+                print(f"✅ Pesan terkirim ke #{channel.name}: {current_message[:60]}")
+            except Exception as e:
+                print(f"❌ Gagal kirim pesan: {e}")
+
+            # Set waktu post berikutnya
+            delay = random.randint(cd_min, cd_max)
+            next_post_time = time.time() + delay
+            print(f"⏳ Kirim berikutnya dalam {delay} detik ({delay//60} menit {delay%60} detik)...")
 
 # ================================================================
 #  HELPER: Cek apakah command berasal dari channel kontrol
@@ -108,27 +119,79 @@ async def set_message(ctx, *, new_msg: str):
     print(f"📝 Pesan diubah: {new_msg}")
 
 
-@bot.command(name="setcd")
-async def set_cooldown(ctx, min_detik: int, max_detik: int = 0):
-    """Ubah jeda antar kiriman pesan.
-    Contoh: !setcd 300 600  → jeda acak antara 5–10 menit
-    Contoh: !setcd 300      → jeda tetap 5 menit"""
+@bot.command(name="getmsg")
+async def get_message(ctx):
+    """Lihat pesan auto post yang aktif saat ini.
+    Contoh: !getmsg"""
     if not is_control_channel(ctx):
         return
-    global cd_min, cd_max
-    if max_detik == 0:
-        max_detik = min_detik
-    if min_detik < 10 or min_detik > max_detik:
-        await ctx.send("❌ Tidak valid. Contoh: `!setcd 300 600`", delete_after=10)
+    await ctx.send(
+        f"📢 **Pesan auto post saat ini:**\n{current_message}",
+        delete_after=30
+    )
+
+
+@bot.command(name="setcd")
+async def set_cooldown(ctx, min_detik: int = None, max_detik: int = None):
+    """Ubah atau lihat jeda antar kiriman pesan.
+    !setcd             → tampilkan CD saat ini
+    !setcd 300         → set jeda tetap 5 menit
+    !setcd 300 600     → set jeda acak 5–10 menit"""
+    if not is_control_channel(ctx):
         return
+    global cd_min, cd_max, next_post_time
+
+    # Kalau tidak ada argumen → tampilkan CD saat ini
+    if min_detik is None:
+        sisa = max(0, int(next_post_time - time.time()))
+        await ctx.send(
+            f"⏱️ **Cooldown saat ini:** {cd_min}–{cd_max} detik "
+            f"({cd_min//60} mnt {cd_min%60} dtk – {cd_max//60} mnt {cd_max%60} dtk)\n"
+            f"⏳ Sisa waktu post berikutnya: **{sisa} detik** ({sisa//60} mnt {sisa%60} dtk)\n"
+            f"Untuk ubah: `!setcd <min> <max>` — Contoh: `!setcd 300 600`",
+            delete_after=20
+        )
+        return
+
+    # Kalau hanya 1 angka → jeda tetap
+    if max_detik is None:
+        max_detik = min_detik
+
+    if min_detik < 10 or min_detik > max_detik:
+        await ctx.send(
+            "❌ Input tidak valid!\n"
+            "Pastikan min ≤ max dan minimal 10 detik.\n"
+            "Contoh: `!setcd 300 600`",
+            delete_after=10
+        )
+        return
+
     cd_min = min_detik
     cd_max = max_detik
+
+    # Reset timer agar langsung pakai CD baru
+    new_delay = random.randint(cd_min, cd_max)
+    next_post_time = time.time() + new_delay
+
     await ctx.send(
-        f"⏱️ Jeda diubah: {cd_min}–{cd_max} detik "
-        f"({cd_min//60}–{cd_max//60} menit)",
-        delete_after=10
+        f"✅ Cooldown diubah!\n"
+        f"⏱️ Jeda baru: {cd_min}–{cd_max} detik ({cd_min//60} mnt – {cd_max//60} mnt)\n"
+        f"⏳ Post berikutnya dalam: **{new_delay} detik**",
+        delete_after=15
     )
-    print(f"⏱️ Cooldown diubah: {cd_min}–{cd_max} detik")
+    print(f"⏱️ Cooldown diubah: {cd_min}–{cd_max} detik | Post berikutnya dalam {new_delay} detik")
+
+
+@bot.command(name="postnow")
+async def post_now(ctx):
+    """Paksa kirim pesan sekarang tanpa menunggu CD.
+    Contoh: !postnow"""
+    if not is_control_channel(ctx):
+        return
+    global next_post_time
+    next_post_time = time.time()  # trigger post di iterasi berikutnya
+    await ctx.send("🚀 Pesan akan dikirim sekarang!", delete_after=5)
+    print("🚀 Force post dipicu!")
 
 
 @bot.command(name="toggleauto")
@@ -137,10 +200,16 @@ async def toggle_auto(ctx):
     Contoh: !toggleauto"""
     if not is_control_channel(ctx):
         return
-    global auto_enabled
+    global auto_enabled, next_post_time
     auto_enabled = not auto_enabled
     status = "🟢 AKTIF" if auto_enabled else "🔴 MATI"
-    await ctx.send(f"⏯️ Auto post sekarang: {status}", delete_after=10)
+    if auto_enabled:
+        # Reset timer saat diaktifkan kembali
+        delay = random.randint(cd_min, cd_max)
+        next_post_time = time.time() + delay
+        await ctx.send(f"⏯️ Auto post: {status}\n⏳ Post berikutnya dalam {delay} detik", delete_after=10)
+    else:
+        await ctx.send(f"⏯️ Auto post: {status}", delete_after=10)
     print(f"⚡ Auto post: {status}")
 
 
@@ -172,13 +241,15 @@ async def show_status(ctx):
     if not is_control_channel(ctx):
         return
     status_auto = "🟢 AKTIF" if auto_enabled else "🔴 MATI"
+    sisa = max(0, int(next_post_time - time.time()))
     msg = (
         f"**📊 Status Bot**\n"
-        f"Auto Post : {status_auto}\n"
+        f"Auto Post     : {status_auto}\n"
         f"Server Tujuan : {TARGET_SERVER_NAME}\n"
-        f"Channel Tujuan : <#{TARGET_CHANNEL_ID}>\n"
-        f"Jeda : {cd_min}–{cd_max} detik\n"
-        f"Pesan : {current_message[:80]}"
+        f"Channel Tujuan: <#{TARGET_CHANNEL_ID}>\n"
+        f"Cooldown      : {cd_min}–{cd_max} detik\n"
+        f"Post berikutnya: **{sisa} detik lagi** ({sisa//60} mnt {sisa%60} dtk)\n"
+        f"Pesan         : {current_message[:80]}"
     )
     await ctx.send(msg, delete_after=30)
 
